@@ -10,20 +10,24 @@ const port = process.env.PORT ?? 3006;
 
 const api = express();
 const servidor = createServer(api)
-const io = new Server(servidor, {})
+const io = new Server(servidor, {
+    connectionStateRecovery: {}
+})
 
 const db = createClient({
-    url: `libsql://distinct-maddog-akimandarinas.turso.io`,
+    url: 'libsql://exciting-belphegor-akimandarinas.turso.io',
     authToken: process.env.DB_TOKEN
 })
 
-await db.execute(`CREATE TABLE IF NOT EXISTS messages(
+await db.execute(`
+CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     content TEXT,
     user TEXT
-)`)
+    )
+`)
 
-io.on('connection', async (socket) =>{
+io.on('connection', async (socket) => {
     console.log('a user has connected!')
 
     socket.on('disconnect', () => {
@@ -33,17 +37,18 @@ io.on('connection', async (socket) =>{
     socket.on('chat message', async (msg) => {
         let result
         const username = socket.handshake.auth.username ?? 'anonymous'
+        console.log({ username })
         try {
             result = await db.execute({
                 sql: 'INSERT INTO messages (content, user) VALUES (:msg, :username)',
-                args: {msg, username}
+                args: { msg, username }
             })
         } catch (e) {
             console.error(e)
             return
         }
 
-        io.emit('chat message',msg , result.lastInsertRowid.toString(), username)
+        io.emit('chat message', msg, result.lastInsertRowid.toString(), username)
     })
 
 
@@ -55,7 +60,7 @@ io.on('connection', async (socket) =>{
             })
 
             results.rows.forEach(row => {
-                socket.emit('chat message', row.content, row.id.toString(), row.username)
+                socket.emit('chat message', row.content, row.id.toString(), row.user)
             })
         } catch (e) {
             console.error(e)
@@ -65,12 +70,10 @@ io.on('connection', async (socket) =>{
 
 api.use(logger('dev'));
 
-api.get('/', function(req, res){
+api.get('/', function(req, res) {
     res.sendFile(process.cwd() + '/client/index.html');
 });
 
-api.use(express.static("client"));
-
 servidor.listen(port, () =>{
-    console.log('Server running on port 3006');
+    console.log(`Server running on port ${port}`);
 });
